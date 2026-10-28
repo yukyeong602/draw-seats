@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="교실 및 모임을 위한 긴장감 넘치는 아케이드형 학생 발표 순서 정하기 및 랜덤 뽑기 프로그램">
+  <title>🎮 Classroom Arcade : 발표 순서 & 랜덤 뽑기</title>
+  
+  <!-- Google Fonts (Outfit & Noto Sans KR) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css?v=20261022_classfix">
+</head>
+<body class="arcade-theme">
+  <!-- Confetti Canvas Overlay -->
+  <canvas id="confettiCanvas"></canvas>
+
+  <div id="appContainer" class="app-container">
+    <!-- Top Header -->
+    <header class="arcade-header">
+      <div class="logo-area">
+        <div class="logo-badge">QUEST</div>
+        <h1 class="logo-title">
+          CLASSROOM <span class="neon-text">ARCADE</span>
+          <span class="sub-badge">발표자 추첨 시스템</span>
+        </h1>
+      </div>
+
+      <!-- Quick Action Controls -->
+      <div class="header-actions">
+        <!-- Preset Dropdown -->
+        <div class="preset-selector-box">
+          <label for="presetSelect">📁 명단 선택:</label>
+          <select id="presetSelect" class="arcade-select" title="저장된 명단 선택">
+            <option value="default">기본 3반 명단 (18명)</option>
+          </select>
+        </div>
+
+        <!-- Student Count Indicator -->
+        <div class="status-badge" id="rosterSummaryBadge" title="추첨 대상 / 전체 인원">
+          <span class="pulse-dot"></span>
+          <span>추첨 가능: <strong id="activeCountDisplay">18</strong>명</span>
+        </div>
+
+        <!-- Audio Toggle Button -->
+        <button id="soundToggleBtn" class="arcade-icon-btn" title="효과음 켜기/끄기" aria-label="사운드 토글">
+          <span class="icon">🔊</span>
+        </button>
+
+        <!-- Fullscreen Button -->
+        <button id="fullscreenBtn" class="arcade-icon-btn" title="전체화면 전환 (F11)" aria-label="전체화면">
+          <span class="icon">⛶</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Navigation Tabs -->
+    <nav class="game-nav-tabs" role="tablist">
+      <button class="nav-tab active" data-tab="roulette" id="tabRoulette" role="tab" aria-selected="true">
+        <span class="tab-icon">🎡</span>
+        <span class="tab-label">행운의 네온 룰렛</span>
+        <span class="tab-desc">1명씩 긴장감 넘치게</span>
+      </button>
+
+      <button class="nav-tab" data-tab="gacha" id="tabGacha" role="tab" aria-selected="false">
+        <span class="tab-icon">🎁</span>
+        <span class="tab-label">미스터리 가챠 머신</span>
+        <span class="tab-desc">레버 돌려 캡슐 뽑기</span>
+      </button>
+
+      <button class="nav-tab" data-tab="podium" id="tabPodium" role="tab" aria-selected="false">
+        <span class="tab-icon">⚡</span>
+        <span class="tab-label">전원 발표 순서 셔플</span>
+        <span class="tab-desc">1등부터 끝번까지 순위</span>
+      </button>
+
+      <button class="nav-tab" data-tab="roster" id="tabRoster" role="tab" aria-selected="false">
+        <span class="tab-icon">👥</span>
+        <span class="tab-label">학생 명단 관리</span>
+        <span class="tab-desc">붙여넣기 & 결석 체크</span>
+      </button>
+    </nav>
+
+    <!-- Main Game Arena -->
+    <main class="game-arena" id="gameArena">
+      
+      <!-- ==================== MODE 1: ROULETTE ==================== -->
+      <section class="game-view active" id="viewRoulette" role="tabpanel">
+        <div class="view-layout roulette-layout">
+          <!-- Left: Canvas Area -->
+          <div class="roulette-stage">
+            <div class="roulette-frame">
+              <div class="roulette-pointer" id="roulettePointer">
+                <div class="pointer-arrow"></div>
+              </div>
+              <canvas id="rouletteCanvas" width="600" height="600"></canvas>
+              <button id="rouletteSpinBtn" class="roulette-center-btn" aria-label="룰렛 돌리기">
+                <span class="btn-glow"></span>
+                <span class="btn-text">SPIN!</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: Control Panel & Live Queue -->
+          <div class="side-panel">
+            <div class="panel-card">
+              <h2 class="panel-title">🕹️ 룰렛 컨트롤</h2>
+              
+              <div class="setting-row">
+                <label class="toggle-container">
+                  <input type="checkbox" id="autoExcludePicked" checked>
+                  <span class="toggle-slider"></span>
+                  <span class="toggle-label">당첨된 학생 자동 제외하기</span>
+                </label>
+              </div>
+
+              <div class="setting-row">
+                <label for="spinDurationSelect">회전 지속 시간 (긴장감):</label>
+                <select id="spinDurationSelect" class="arcade-select full">
+                  <option value="4000">빠름 (4초)</option>
+                  <option value="6500" selected>짜릿한 표준 (6.5초)</option>
+                  <option value="10000">극강의 서스펜스 (10초)</option>
+                </select>
+              </div>
+
+              <div class="action-buttons-group">
+                <button id="directSpinBtn" class="arcade-btn primary-glow full">
+                  🎡 룰렛 힘차게 돌리기! <span class="hotkey-hint">[Space]</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Recent Picks in Roulette -->
+            <div class="panel-card flex-1">
+              <div class="panel-header-inline">
+                <h3 class="panel-title">🏆 방금 당첨된 학생</h3>
+                <button id="resetHistoryBtn" class="arcade-btn-mini">기록 초기화</button>
+              </div>
+              <ul class="history-list" id="pickedHistoryList">
+                <li class="history-empty">아직 추첨된 학생이 없습니다.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== MODE 2: GACHA MACHINE ==================== -->
+      <section class="game-view" id="viewGacha" role="tabpanel">
+        <div class="view-layout gacha-layout">
+          <!-- Gacha Machine Visual Stage -->
+          <div class="gacha-stage">
+            <div class="gacha-machine-body">
+              <!-- Glass Dome with bouncy capsules -->
+              <div class="gacha-dome" id="gachaDome">
+                <canvas id="gachaDomeCanvas" width="460" height="340"></canvas>
+                <div class="dome-highlight"></div>
+              </div>
+
+              <!-- Lower Machine Base -->
+              <div class="gacha-base">
+                <div class="gacha-front-panel">
+                  <div class="coin-slot-sign">
+                    <span class="blink-text">READY</span>
+                    <span class="slot-text">INSERT COIN</span>
+                  </div>
+
+                  <!-- Interactive Crank Handle -->
+                  <div class="crank-container" id="crankContainer">
+                    <div class="crank-axis"></div>
+                    <div class="crank-handle" id="crankHandle">
+                      <div class="crank-knob"></div>
+                    </div>
+                  </div>
+
+                  <!-- Capsule Exit Chute -->
+                  <div class="chute-container">
+                    <div class="chute-hole" id="chuteHole">
+                      <div class="capsule-ready" id="capsuleReady"></div>
+                    </div>
+                    <div class="chute-flap">POW!</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gacha Controls & Unboxed Log -->
+          <div class="side-panel">
+            <div class="panel-card">
+              <h2 class="panel-title">🎁 캡슐 뽑기 퀘스트</h2>
+              <p class="panel-desc">손잡이를 직접 잡고 돌리거나 아래 뽑기 버튼을 눌러보세요!</p>
+
+              <button id="gachaPullBtn" class="arcade-btn accent-glow full gacha-big-btn">
+                <span>⚡ 캡슐 뽑기 레버 당기기!</span>
+                <span class="hotkey-hint">[Space]</span>
+              </button>
+
+              <button id="gachaShuffleBallsBtn" class="arcade-btn secondary full mt-2">
+                🔄 캡슐 머신 흔들기
+              </button>
+            </div>
+
+            <!-- Gacha Reward Log -->
+            <div class="panel-card flex-1">
+              <h3 class="panel-title">📦 오픈된 캡슐 목록</h3>
+              <div class="capsule-grid-log" id="gachaOpenedGrid">
+                <div class="history-empty">뽑힌 캡슐이 없습니다.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== MODE 3: PODIUM (FULL ORDER REVEAL) ==================== -->
+      <section class="game-view" id="viewPodium" role="tabpanel">
+        <div class="podium-view-container">
+          <div class="podium-header-bar">
+            <div>
+              <h2 class="section-title">⚡ 발표 순서 전원 셔플 타워</h2>
+              <p class="section-desc">전체 학생의 순서를 한 번에 무작위로 섞고, 극적으로 하나씩 공개합니다!</p>
+            </div>
+
+            <div class="podium-actions">
+              <button id="podiumShuffleBtn" class="arcade-btn primary-glow">
+                🔀 순서 섞고 공개 시작!
+              </button>
+              <button id="podiumInstantRevealBtn" class="arcade-btn secondary">
+                ⚡ 전체 즉시 공개
+              </button>
+              <button id="podiumCopyBtn" class="arcade-btn secondary" title="순서 텍스트 복사">
+                📋 결과 복사
+              </button>
+            </div>
+          </div>
+
+          <!-- Podium Status & Progress -->
+          <div class="podium-progress-bar">
+            <div class="podium-progress-fill" id="podiumProgressFill"></div>
+            <span class="podium-progress-text" id="podiumProgressText">준비 완료: [순서 섞고 공개 시작] 버튼을 누르세요.</span>
+          </div>
+
+          <!-- Cards Grid -->
+          <div class="podium-cards-grid" id="podiumCardsGrid">
+            <!-- Dynamically populated cards -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== MODE 4: ROSTER MANAGEMENT ==================== -->
+      <section class="game-view" id="viewRoster" role="tabpanel">
+        <div class="roster-view-container">
+          <!-- Left Column: Input and Import Tools -->
+          <div class="roster-tool-panel">
+            <div class="panel-card">
+              <h2 class="panel-title">📝 명단 빠른 등록 & 붙여넣기</h2>
+              <p class="panel-desc">
+                엑셀, 한글, 카톡, 메모장 텍스트를 붙여넣거나 <strong>.txt / .csv 파일을 여기에 직접 끌어다 놓으세요(Drag & Drop)</strong>.<br>
+                <small style="color:var(--neon-cyan);">✓ <strong>다중 학급 자동 분리 지원:</strong> 엑셀 표(반/이름), [1반]/[2반] 구분, '1반 김민준' 등을 인식하여 학급별로 분리 저장합니다.</small>
+              </p>
+
+              <div class="textarea-actions-bar mb-2" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <button id="clipboardPasteBtn" class="arcade-btn-mini" type="button" style="color:var(--neon-cyan);">📋 클립보드에서 붙여넣기</button>
+                <button id="clearTextareaBtn" class="arcade-btn-mini" type="button">상자 비우기</button>
+              </div>
+
+              <div class="textarea-wrapper" id="textareaDropZone">
+                <textarea id="bulkInputArea" class="arcade-textarea" rows="6" placeholder="여기에 텍스트를 붙여넣거나 .txt 파일을 드래그하세요!&#10;&#10;[단일 학급 예시]&#10;1. 김민준&#10;2. 이서아&#10;최지우, 강시우...&#10;&#10;[다중 학급 예시 (자동 분리)]&#10;[1반]&#10;김민준, 이서아&#10;[2반]&#10;박도윤, 정하은 (또는 엑셀 표 복사)"></textarea>
+                <div class="drop-overlay-text" id="dropOverlayText">📂 여기에 파일을 놓으세요!</div>
+              </div>
+
+              <div class="bulk-preview-bar" id="bulkPreviewBar" style="display:none;">
+                <span class="preview-count-tag" id="previewCountTag">0명 감지됨</span>
+                <span class="preview-names-text" id="previewNamesText"></span>
+              </div>
+
+              <!-- Multi-Class Dedicated Button (Dynamically Shown) -->
+              <div id="multiClassActionBox" style="display:none; margin-top:10px;">
+                <button id="separateClassApplyBtn" class="arcade-btn accent-glow full" type="button" style="font-size:0.95rem; padding:12px;">
+                  ✨ 학급별로 분리하여 각각 저장
+                </button>
+              </div>
+
+              <div class="roster-btn-row mt-2" style="display:flex; gap:8px;">
+                <button id="applyBulkRosterBtn" class="arcade-btn primary-glow full">
+                  ➕ 명단 일괄 적용하기
+                </button>
+                <button id="forceApplyRosterBtn" class="arcade-btn secondary" type="button" title="필터링 없이 줄바꿈/쉼표 기준으로 강제 등록합니다" style="white-space:nowrap;">
+                  ⚡ 강제 등록
+                </button>
+              </div>
+
+              <!-- Quick Single Student Add -->
+              <div class="single-add-row mt-3">
+                <input type="text" id="singleStudentInput" class="arcade-input" placeholder="현재 학급에 학생 추가 (Enter)">
+                <button id="addSingleStudentBtn" class="arcade-btn secondary">추가</button>
+              </div>
+            </div>
+
+            <!-- Preset / Class Manager Card -->
+            <div class="panel-card mt-3">
+              <div class="panel-header-inline" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <h3 class="panel-title" style="margin:0;">🏫 학급(반) 관리 & 프리셋</h3>
+                <button id="createNewClassBtn" class="arcade-btn-mini" type="button" style="color:var(--neon-cyan); border-color:var(--neon-cyan);">➕ 새 학급 추가</button>
+              </div>
+              <p class="panel-desc" style="margin-bottom:10px;">클릭하여 작업할 학급으로 즉시 전환하세요. 각 학급은 독립적으로 저장됩니다.</p>
+              
+              <!-- Saved Class Chips -->
+              <div class="preset-saved-list" id="presetSavedList">
+                <!-- Preset chips rendered here -->
+              </div>
+
+              <div class="preset-create-row mt-3" style="display:flex; gap:8px;">
+                <input type="text" id="newPresetNameInput" class="arcade-input" placeholder="학급 이름 (예: 1학년 2반)">
+                <button id="saveCurrentPresetBtn" class="arcade-btn secondary" title="현재 학생들을 이 이름의 새 학급으로 저장">복사 저장</button>
+                <button id="renamePresetBtn" class="arcade-btn secondary-subtle" title="현재 선택된 학급의 이름 변경">이름 변경</button>
+              </div>
+            </div>
+
+            <!-- Sample and File Actions -->
+            <div class="panel-card mt-3">
+              <h3 class="panel-title">🛠️ 유용한 도구</h3>
+              <div class="tool-btn-grid">
+                <button id="loadSampleStudentsBtn" class="arcade-btn secondary-subtle">
+                  🎲 샘플 명단 불러오기 (20명)
+                </button>
+                <button id="exportRosterBtn" class="arcade-btn secondary-subtle">
+                  📥 현재 학급 명단 저장 (.txt)
+                </button>
+                <label class="arcade-btn secondary-subtle file-label">
+                  📤 파일 불러오기 (.txt/.csv)
+                  <input type="file" id="importRosterFileInput" accept=".txt,.csv" style="display:none;">
+                </label>
+                <button id="clearAllRosterBtn" class="arcade-btn danger-subtle">
+                  🗑️ 현재 학급 명단 비우기
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Interactive Student Pills / Cards -->
+          <div class="roster-list-panel">
+            <div class="panel-card h-100">
+              <div class="roster-header-actions">
+                <div>
+                  <h3 class="panel-title">👥 [ <span id="currentClassNameDisplay" style="color:var(--neon-cyan); font-weight:800;">기본 3반 명단</span> ] 명단 (<span id="totalStudentsCount">0</span>명)</h3>
+                  <p class="panel-desc">이름을 클릭하면 <span class="highlight-chip">결석/제외</span> 상태를 토글할 수 있습니다.</p>
+                </div>
+                <div class="roster-quick-filters">
+                  <button id="selectAllBtn" class="arcade-btn-mini">전원 출석</button>
+                  <button id="resetPickedFlagsBtn" class="arcade-btn-mini">당첨 기록 리셋</button>
+                </div>
+              </div>
+
+              <!-- Student Pills Container -->
+              <div class="student-chips-container" id="studentChipsContainer">
+                <!-- Dynamic Chips -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Global Footer -->
+    <footer class="arcade-footer">
+      <div class="footer-left">
+        <span>🎮 <strong>Classroom Arcade</strong> v1.0</span>
+        <span class="hotkey-badge">단축키: [스페이스바] 추첨 / [F] 전체화면 / [M] 음소거</span>
+      </div>
+      <div class="footer-right">
+        <span>학생 발표 순서 및 무작위 추첨기</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ==================== DRAMATIC WINNER MODAL ==================== -->
+  <div class="arcade-modal" id="winnerModal" role="dialog" aria-hidden="true">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-card winner-card">
+      <div class="modal-rays"></div>
+      <div class="winner-trophy">👑</div>
+      <div class="winner-subtext" id="winnerModalSub">🎉 오늘의 발표 당첨자!</div>
+      <div class="winner-name-glow" id="winnerModalName">홍길동</div>
+      <div class="winner-tag-info" id="winnerModalDetail">발표 순서 1번</div>
+
+      <div class="modal-actions">
+        <button id="winnerModalConfirmBtn" class="arcade-btn primary-glow big">
+          🎊 확인 & 계속하기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts with Cache-Buster -->
+  <script src="js/audio.js?v=20261022_classfix"></script>
+  <script src="js/confetti.js?v=20261022_classfix"></script>
+  <script src="js/roster.js?v=20261022_classfix"></script>
+  <script src="js/roulette.js?v=20261022_classfix"></script>
+  <script src="js/gacha.js?v=20261022_classfix"></script>
+  <script src="js/podium.js?v=20261022_classfix"></script>
+  <script src="app.js?v=20261022_classfix"></script>
+</body>
+</html>
